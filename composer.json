@@ -1,0 +1,32 @@
+{
+    "name": "ohtarr/Dns",
+    "type": "library",
+    "description": "PHP DNS Library",
+    "keywords": [
+        "php5",
+        "dns",
+		"dnscmd"
+        ],
+    "homepage": "https://github.com/ohtarr/dns",
+    "license": "LGPL3.0",
+    "authors": [
+        {
+            "name": "Ohtarr",
+            "email": "ohtarr@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+		"php": ">=5.3.3",
+        "vlucas/phpdotenv": "^2.4",
+        "guzzlehttp/guzzle": "^6.2"
+    },
+    "require-dev": {
+    },
+    "autoload": {
+        "psr-4": {
+            "ohtarr\\": "lib"
+        }
+    }
+}
