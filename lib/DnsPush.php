@@ -38,7 +38,9 @@ class DnsPush
 	public $NMRECORDS;
 	public $psclient;		//array of switches from Network Management Platform
 	public $nmclient;
-
+	public $dnsserver;
+	public $ZONE;
+	
     public function __construct()
 	{
 		$dotenv = new Dotenv(__DIR__."/../");
@@ -49,84 +51,106 @@ class DnsPush
 		$this->nmclient = new GuzzleHttpClient([
 			'base_uri' => getenv('NM_API_URL'),
 		]);
+
+		//$this->DNSRECORDS = $this->GetAllDnsRecords(getenv('DEFAULT_ZONE'),getenv('DNS_SERVER'));		//populate array of switches from Network Management Platform
+		//$this->NMRECORDS = $this->GetNMDeviceDns();		//populate array of switches from Network Management Platform
 		
-		$this->DNSRECORDS = $this->GetAllDnsRecords(getenv('DEFAULT_ZONE'),getenv('DNS_SERVER'));		//populate array of switches from Network Management Platform
-		$this->NMRECORDS = $this->GetNMDeviceDns();		//populate array of switches from Network Management Platform
+		$this->dnsserver = getenv('DNS_SERVER');
+		$this->ZONE = getenv('DEFAULT_ZONE');
 	}
 
-	public static function print_env(){
-		//(new Dotenv(__DIR__ . '/../'))->load();
-		print getenv('API_URL') . "\n";
-		print getenv('DNS_SERVER') . "\n";
-		print getenv('DEFAULT_ZONE') . "\n";
-	}
-
-	public function GetAllDnsRecords($zone, $server, $name = null)
+	public function GetAllDnsRecords($zone, $name = null)
 	{
-		$postparams = [
-			'action'	=>	'DnsGetRecords',
-			'zone'		=>	$zone,
-			'server'	=>	$server,
-		];
-		
-		if($name)
+		if(!$this->DNSRECORDS[$zone])
 		{
-			$postparams['name'] = $name;
-		}
+			$postparams = [
+				'action'	=>	'DnsGetRecords',
+				'zone'		=>	$zone,
+				'server'	=>	$this->dnsserver,
+			];
+			
+			if($name)
+			{
+				$postparams['name'] = $name;
+			}
 
-		//Build a Guzzle POST request
-		$apiRequest = $this->psclient->request('POST', "", [
-				'form_params' => $postparams,
-				'auth' => [
-					getenv('API_USERNAME'),
-					getenv('API_PASSWORD')
-				],
-		]);
-		$response = $apiRequest->getBody()->getContents();
-		$array = json_decode($response,true);
-		return $array['psresponse']['data'];
+			//Build a Guzzle POST request
+			$apiRequest = $this->psclient->request('POST', "", [
+					'form_params' => $postparams,
+					'auth' => [
+						getenv('API_USERNAME'),
+						getenv('API_PASSWORD')
+					],
+			]);
+			$response = $apiRequest->getBody()->getContents();
+			$array = json_decode($response,true);
+			$this->DNSRECORDS[$zone] = $array['psresponse']['data'];
+		}
+		return $this->DNSRECORDS[$zone];
+	}
+	
+	public function GetCustomDnsRecords($zone, $filter)
+	{
+		foreach($this->GetAllDnsRecords($zone) as $record)
+		{
+			if(preg_match("/".$filter."/",$record['value']))
+			{
+				$customrecords[] = $record;
+			}
+		}
+		return $customrecords;
 	}
 	
 	public function GetNMDeviceDns()
 	{
-		$apiRequest = $this->nmclient->request('GET', "tools/dns-json.php");
-		$response = $apiRequest->getBody()->getContents();
-		
-		$array = json_decode($response,true);
-
-		return $array;
+		if(!$this->NMRECORDS)
+		{
+			$apiRequest = $this->nmclient->request('GET', "tools/dns-json.php");
+			$response = $apiRequest->getBody()->getContents();
+			
+			$array = json_decode($response,true);
+			$this->NMRECORDS = $array;
+		}
+		return $this->NMRECORDS;
 	}
 
-	public function DnsRecordsToAdd()
+	public function ForwardDnsRecordsToAdd()
 	{
-		foreach($this->NMRECORDS as $nmrecord)
+		foreach($this->GetNMDeviceDns() as $nmrecord)
 		{
-			$match = 0;
-			foreach($this->DNSRECORDS as $dnsrecord)
+			if($nmrecord['zone'] == $this->ZONE)
 			{
-				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']))
+				$match = 0;
+				//print_r($nmrecord);
+				foreach($this->GetAllDnsRecords($this->ZONE) as $dnsrecord)
 				{
-					$match = 1;
-					//print $dnsrecord['name'] . "\n";
-					break;
+					//print_r($dnsrecord);
+					if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
+					{
+						$match = 1;
+						//print $dnsrecord['name'] . "\n";
+						break;
+					}
+				}
+				if($match == 0)
+				{
+					//print $nmrecord['name'] . "\n";
+					//print_r($nmrecord);
+					$array[] = $nmrecord;
 				}
 			}
-			if($match == 0)
-			{
-				$array[] = $nmrecord;
-			}
 		}
-	return $array;
+		return $array;
 	}
 	
-	public function DnsRecordsToRemove()
+	public function ForwardDnsRecordsToRemove()
 	{
-		foreach($this->DNSRECORDS as $dnsrecord)
+		foreach($this->GetAllDnsRecords($this->ZONE) as $dnsrecord)
 		{
 			$match = 0;
-			foreach($this->NMRECORDS as $nmrecord)
+			foreach($this->GetNMDeviceDns() as $nmrecord)
 			{
-				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']))
+				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
 				{
 					$match = 1;
 					//print $dnsrecord['name'] . "\n";
@@ -138,9 +162,62 @@ class DnsPush
 				$array[] = $dnsrecord;
 			}
 		}
-	return $array;
+		return $array;
 	}
-
+	
+	public function ReverseDnsRecordsToAdd()
+	{
+		$rzone = '10.in-addr.arpa';
+		$reverserecords = $this->GetCustomDnsRecords($rzone,$this->ZONE);
+		foreach($this->GetNMDeviceDns() as $nmrecord)
+		{
+			//print ".";
+			$match = 0;
+			//print_r($nmrecord);
+			if($nmrecord['zone'] == $rzone)
+			{
+				foreach($reverserecords as $dnsrecord)
+				{
+					//print_r($dnsrecord);
+					if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
+					{
+						$match = 1;
+						//print $dnsrecord['name'] . "\n";
+						break;
+					}
+				}
+				if($match == 0)
+				{
+					$array[] = $nmrecord;
+				}
+			}
+		}
+		return $array;
+	}
+	
+	public function ReverseDnsRecordsToRemove()
+	{
+		$rzone = '10.in-addr.arpa';
+		foreach($this->GetCustomDnsRecords($rzone,$this->ZONE) as $dnsrecord)
+		{
+			//print ".";
+			$match = 0;
+			foreach($this->GetNMDeviceDns() as $nmrecord)
+			{
+				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
+				{
+					$match = 1;
+					break;
+				}
+			}
+			if($match == 0)
+			{
+				$array[] = $dnsrecord;
+			}
+		}
+		return $array;
+	}	
+	
 	public function DnsAddRecord($zone, $server, $name, $type, $value)
 	{
 		$postparams = [
@@ -164,6 +241,7 @@ class DnsPush
 		return $array['success'];
 	}
 
+
 	public function DnsRemoveRecord($zone, $server, $name, $type)
 	{
 		$postparams = [
@@ -186,10 +264,10 @@ class DnsPush
 		return $array['success'];
 	}
 	
-	public function DnsAddRecords()
+	public function DnsAddForwardRecords()
 	{
-		print "*************ADDING RECORDS*************\n";
-		if($records = $this->DnsRecordsToAdd())
+		print "*************ADDING FORWARD RECORDS*************\n";
+		if($records = $this->ForwardDnsRecordsToAdd())
 		{
 			foreach($records as $record)
 			{
@@ -201,16 +279,16 @@ class DnsPush
 					print "FAILED!\n";
 				}
 			}
-		print "COMPLETED!\n";
+			print "COMPLETED!\n";
 		} else {
 			print "NO DNS RECORDS TO ADD!\n";
 		}
 	}
 	
-	public function DnsRemoveRecords()
+	public function DnsRemoveForwardRecords()
 	{
-		print "*************REMOVING RECORDS*************\n";
-		if($records = $this->DnsRecordsToRemove())
+		print "*************REMOVING FORWARD RECORDS*************\n";
+		if($records = $this->ForwardDnsRecordsToRemove())
 		{
 			foreach($records as $record)
 			{
@@ -227,4 +305,47 @@ class DnsPush
 			print "NO DNS RECORDS TO REMOVE!\n";
 		}
 	}
+	
+	public function DnsAddReverseRecords()
+	{
+		print "*************ADDING REVERSE RECORDS*************\n";
+		if($records = $this->ReverseDnsRecordsToAdd())
+		{
+			foreach($records as $record)
+			{
+				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . " VALUE: " . $record['value'] . "......";
+				if($this->DnsAddRecord($record['zone'],$this->dnsserver,$record['name'], $record['type'], $record['value']))
+				{
+					print "SUCCESS!\n";
+				} else {
+					print "FAILED!\n";
+				}
+			}
+			print "COMPLETED!\n";
+		} else {
+			print "NO DNS RECORDS TO ADD!\n";
+		}
+	}
+	
+	public function DnsRemoveReverseRecords()
+	{
+		print "*************REMOVING REVERSE RECORDS*************\n";
+		if($records = $this->ReverseDnsRecordsToRemove())
+		{
+			foreach($records as $record)
+			{
+				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . " VALUE " . $record['value'] . " ......";
+				if($this->DnsRemoveRecord($record['zone'],$this->dnsserver,$record['name'], $record['type']))
+				{
+					print "SUCCESS!\n";
+				} else {
+					print "FAILED!\n";
+				}
+			}
+		print "COMPLETED!\n";
+		} else {
+			print "NO DNS RECORDS TO REMOVE!\n";
+		}
+	}	
+	
 }
