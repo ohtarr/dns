@@ -28,8 +28,6 @@
  */
 namespace ohtarr;
 
-use Dotenv\Dotenv;
-//use GuzzleHttp\Client;
 use GuzzleHttp\Client as GuzzleHttpClient;
 
 class DnsPush
@@ -38,25 +36,30 @@ class DnsPush
 	public $NMRECORDS;
 	public $psclient;		//array of switches from Network Management Platform
 	public $nmclient;
+	public $apiurl;
+	private $apiusername;
+	private $apipassword;
+	public $dnsrecordsurl;
 	public $dnsserver;
 	public $ZONE;
 	
-    public function __construct()
+    public function __construct($apiurl, $apiusername, $apipassword, $dnsrecordsurl, $dnsserver, $zone)
 	{
-		$dotenv = new Dotenv(__DIR__."/../");
-		$dotenv->load();
+		$this->apiurl = $apiurl;
+		$this->apiusername = $apiusername;
+		$this->apipassword = $apipassword;
+		$this->dnsrecordsurl = $dnsrecordsurl;
+		$this->dnsserver = $dnsserver;
+		$this->ZONE = $zone;
+
 		$this->psclient = new GuzzleHttpClient([
-			'base_uri' => getenv('API_URL'),
+			'base_uri' => $this->apiurl,
+			'verify'	=>	false,
 		]);
 		$this->nmclient = new GuzzleHttpClient([
-			'base_uri' => getenv('NM_API_URL'),
+			'base_uri' => $this->dnsrecordsurl,
+			'verify'	=>	false,
 		]);
-
-		//$this->DNSRECORDS = $this->GetAllDnsRecords(getenv('DEFAULT_ZONE'),getenv('DNS_SERVER'));		//populate array of switches from Network Management Platform
-		//$this->NMRECORDS = $this->GetNMDeviceDns();		//populate array of switches from Network Management Platform
-		
-		$this->dnsserver = getenv('DNS_SERVER');
-		$this->ZONE = getenv('DEFAULT_ZONE');
 	}
 
 	public function GetAllDnsRecords($zone, $name = null)
@@ -65,7 +68,7 @@ class DnsPush
 		{
 			$postparams = [
 				'action'	=>	'DnsGetRecords',
-				'zone'		=>	$zone,
+				'zone'		=>	$this->ZONE,
 				'server'	=>	$this->dnsserver,
 			];
 			
@@ -78,8 +81,8 @@ class DnsPush
 			$apiRequest = $this->psclient->request('POST', "", [
 					'form_params' => $postparams,
 					'auth' => [
-						getenv('API_USERNAME'),
-						getenv('API_PASSWORD')
+						$this->apiusername,
+						$this->apipassword
 					],
 			]);
 			$response = $apiRequest->getBody()->getContents();
@@ -105,7 +108,7 @@ class DnsPush
 	{
 		if(!$this->NMRECORDS)
 		{
-			$apiRequest = $this->nmclient->request('GET', "tools/dns-json.php");
+			$apiRequest = $this->nmclient->request('GET');
 			$response = $apiRequest->getBody()->getContents();
 			
 			$array = json_decode($response,true);
@@ -232,8 +235,8 @@ class DnsPush
 		$apiRequest = $this->psclient->request('POST', "", [
 				'form_params' => $postparams,
 				'auth' => [
-					getenv('API_USERNAME'),
-					getenv('API_PASSWORD')
+					$this->apiusername,
+					$this->apipassword
 				],
 		]);
 		$response = $apiRequest->getBody()->getContents();
@@ -255,8 +258,8 @@ class DnsPush
 		$apiRequest = $this->psclient->request('POST', "", [
 				'form_params' => $postparams,
 				'auth' => [
-					getenv('API_USERNAME'),
-					getenv('API_PASSWORD')
+					$this->apiusername,
+					$this->apipassword
 				],
 		]);
 		$response = $apiRequest->getBody()->getContents();
@@ -272,7 +275,7 @@ class DnsPush
 			foreach($records as $record)
 			{
 				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . " VALUE: " . $record['value'] . "......";
-				if($this->DnsAddRecord(getenv(DEFAULT_ZONE),getenv(DNS_SERVER),$record['name'], $record['type'], $record['value']))
+				if($this->DnsAddRecord($this->zone,$dnsserver,$record['name'], $record['type'], $record['value']))
 				{
 					print "SUCCESS!\n";
 				} else {
@@ -293,7 +296,7 @@ class DnsPush
 			foreach($records as $record)
 			{
 				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . "......";
-				if($this->DnsRemoveRecord(getenv(DEFAULT_ZONE),getenv(DNS_SERVER),$record['name'], $record['type']))
+				if($this->DnsRemoveRecord($this->ZONE,$dnsserver,$record['name'], $record['type']))
 				{
 					print "SUCCESS!\n";
 				} else {

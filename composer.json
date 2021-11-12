@@ -1,5 +1,5 @@
 {
-    "name": "ohtarr/Dns",
+    "name": "ohtarr/dns",
     "type": "library",
     "description": "PHP DNS Library",
     "keywords": [
@@ -18,8 +18,7 @@
     ],
     "minimum-stability": "dev",
     "require": {
-		"php": ">=5.3.3",
-        "vlucas/phpdotenv": "2.4.0",
+	"php": ">=5.3.3",
         "guzzlehttp/guzzle": "^6.2"
     },
     "require-dev": {
