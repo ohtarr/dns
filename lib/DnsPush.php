@@ -275,7 +275,7 @@ class DnsPush
 			foreach($records as $record)
 			{
 				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . " VALUE: " . $record['value'] . "......";
-				if($this->DnsAddRecord($this->ZONE,$dnsserver,$record['name'], $record['type'], $record['value']))
+				if($this->DnsAddRecord($this->ZONE,$this->dnsserver,$record['name'], $record['type'], $record['value']))
 				{
 					print "SUCCESS!\n";
 				} else {
@@ -296,7 +296,7 @@ class DnsPush
 			foreach($records as $record)
 			{
 				print "NAME: " . $record['name'] . " TYPE: " . $record['type'] . "......";
-				if($this->DnsRemoveRecord($this->ZONE,$dnsserver,$record['name'], $record['type']))
+				if($this->DnsRemoveRecord($this->ZONE,$this->dnsserver,$record['name'], $record['type']))
 				{
 					print "SUCCESS!\n";
 				} else {
