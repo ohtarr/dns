@@ -62,13 +62,14 @@ class DnsPush
 		]);
 	}
 
-	public function GetAllDnsRecords($zone, $name = null)
+	public function GetAllDnsRecords($zone , $name = null)
 	{
-		if(!$this->DNSRECORDS[$zone])
+		//if(!$this->DNSRECORDS[$zone])
+		if(!isset($this->DNSRECORDS[$zone]))
 		{
 			$postparams = [
 				'action'	=>	'DnsGetRecords',
-				'zone'		=>	$this->ZONE,
+				'zone'		=>	$zone,
 				'server'	=>	$this->dnsserver,
 			];
 			
@@ -92,10 +93,14 @@ class DnsPush
 		return $this->DNSRECORDS[$zone];
 	}
 	
-	public function GetCustomDnsRecords($zone, $filter)
+	public function GetCustomDnsRecords($zone,$filter)
 	{
 		foreach($this->GetAllDnsRecords($zone) as $record)
 		{
+			if(!$record)
+			{
+				continue;
+			}
 			if(preg_match("/".$filter."/",$record['value']))
 			{
 				$customrecords[] = $record;
@@ -119,26 +124,30 @@ class DnsPush
 
 	public function ForwardDnsRecordsToAdd()
 	{
+		$array = [];
 		foreach($this->GetNMDeviceDns() as $nmrecord)
 		{
+			if(!$nmrecord)
+			{
+				continue;
+			}
 			if($nmrecord['zone'] == $this->ZONE)
 			{
 				$match = 0;
-				//print_r($nmrecord);
 				foreach($this->GetAllDnsRecords($this->ZONE) as $dnsrecord)
 				{
-					//print_r($dnsrecord);
+					if(!$dnsrecord)
+					{
+						continue;
+					}
 					if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
 					{
 						$match = 1;
-						//print $dnsrecord['name'] . "\n";
 						break;
 					}
 				}
 				if($match == 0)
 				{
-					//print $nmrecord['name'] . "\n";
-					//print_r($nmrecord);
 					$array[] = $nmrecord;
 				}
 			}
@@ -148,15 +157,23 @@ class DnsPush
 	
 	public function ForwardDnsRecordsToRemove()
 	{
+		$array = [];
 		foreach($this->GetAllDnsRecords($this->ZONE) as $dnsrecord)
 		{
+			if(!$dnsrecord)
+			{
+				continue;
+			}
 			$match = 0;
 			foreach($this->GetNMDeviceDns() as $nmrecord)
 			{
+				if(!$nmrecord)
+				{
+					continue;
+				}
 				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
 				{
 					$match = 1;
-					//print $dnsrecord['name'] . "\n";
 					break;
 				}
 			}
@@ -170,22 +187,27 @@ class DnsPush
 	
 	public function ReverseDnsRecordsToAdd()
 	{
+		$array = [];
 		$rzone = '10.in-addr.arpa';
 		$reverserecords = $this->GetCustomDnsRecords($rzone,$this->ZONE);
 		foreach($this->GetNMDeviceDns() as $nmrecord)
 		{
-			//print ".";
+			if(!$nmrecord)
+			{
+				continue;
+			}
 			$match = 0;
-			//print_r($nmrecord);
 			if($nmrecord['zone'] == $rzone)
 			{
 				foreach($reverserecords as $dnsrecord)
 				{
-					//print_r($dnsrecord);
+					if(!$dnsrecord)
+					{
+						continue;
+					}
 					if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
 					{
 						$match = 1;
-						//print $dnsrecord['name'] . "\n";
 						break;
 					}
 				}
@@ -200,14 +222,28 @@ class DnsPush
 	
 	public function ReverseDnsRecordsToRemove()
 	{
+		$array = [];
 		$rzone = '10.in-addr.arpa';
-		foreach($this->GetCustomDnsRecords($rzone,$this->ZONE) as $dnsrecord)
+		$dnsrecords = $this->GetCustomDnsRecords($rzone,$this->ZONE);
+		foreach($dnsrecords as $dnsrecord)
 		{
-			//print ".";
+			if(!$dnsrecord)
+			{
+				continue;
+			}
 			$match = 0;
 			foreach($this->GetNMDeviceDns() as $nmrecord)
 			{
-				if(strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && strtolower($dnsrecord['value']) == strtolower($nmrecord['value']))
+				if(!$nmrecord)
+				{
+					continue;
+				}
+				if(
+					strtolower($dnsrecord['name']) == strtolower($nmrecord['name']) && 
+					strtolower($dnsrecord['type']) == strtolower($nmrecord['type']) && 
+					strtolower($dnsrecord['zone']) == strtolower($nmrecord['zone']) && 
+					strtolower($dnsrecord['value']) == strtolower($nmrecord['value'])
+				)
 				{
 					$match = 1;
 					break;
